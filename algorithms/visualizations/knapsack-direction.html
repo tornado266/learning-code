@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>背包问题的遍历方向</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="背包问题的遍历方向">
+<div id="knapsack-direction-tutor">
+  <p>只有一件 A：重量 2，价值 3；容量上限 4。</p>
+  <div class="viz-controls">
+    <button class="btn" type="button" data-prev>上一步</button>
+    <button class="btn btn-primary" type="button" data-next>下一步</button>
+    <span data-step class="tabular-nums" aria-live="polite"></span>
+  </div>
+  <div class="direction-columns">
+    <section data-side="ascending">
+      <h3>正序：2 → 3 → 4</h3>
+      <svg class="direction-view" role="img" aria-label="正序更新容量的过程"></svg>
+    </section>
+    <section data-side="descending">
+      <h3>倒序：4 → 3 → 2</h3>
+      <svg class="direction-view" role="img" aria-label="倒序更新容量的过程"></svg>
+    </section>
+  </div>
+  <p class="text-small">格内：最大价值 / 对应物品。每列是一个独立的容量问题。</p>
+</div>
+<style>
+#knapsack-direction-tutor .direction-columns {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:20px;}
+#knapsack-direction-tutor section {min-width:0;}
+#knapsack-direction-tutor h3 {font-weight:500;margin:16px 0 0;}
+#knapsack-direction-tutor p {margin:8px 0;}
+#knapsack-direction-tutor .direction-view {display:block;width:100%;height:310px;}
+#knapsack-direction-tutor .direction-view text {font-family:inherit;font-size:var(--font-size-base);fill:var(--foreground);text-anchor:middle;dominant-baseline:middle;}
+</style>
+<script>
+(() => {
+ const root=document.getElementById('knapsack-direction-tutor');
+ const ns='http://www.w3.org/2000/svg', orders={ascending:[2,3,4],descending:[4,3,2]};
+ const data={};
+ for(const [key,order] of Object.entries(orders)){
+  const dp=[0,0,0,0,0],items=[0,0,0,0,0],changed=[false,false,false,false,false];
+  data[key]=[{dp:dp.slice(),items:items.slice(),changed:changed.slice(),c:null}];
+  for(const c of order){
+   const source=c-2,oldValue=dp[source],oldCount=items[source],sourceUpdated=changed[source];
+   const candidate=oldValue+3;
+   if(candidate>dp[c]){dp[c]=candidate;items[c]=oldCount+1;}
+   changed[c]=true;
+   data[key].push({dp:dp.slice(),items:items.slice(),changed:changed.slice(),c,source,oldValue,oldCount,sourceUpdated});
+  }
+ }
+ let step=0;
+ const add=(svg,tag,attrs={},text)=>{const el=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;svg.appendChild(el);return el;};
+ function drawPanel(panel,animate=false,previousStep=step){
+  const side=panel.getAttribute('data-side'),svg=panel.querySelector('svg'),width=panel.getBoundingClientRect().width;
+  if(!width)return;
+  const s=data[side][step],prev=data[side][previousStep],pitch=(width-12)/5,left=6;
+  svg.setAttribute('viewBox',`0 0 ${width} 310`);svg.replaceChildren();
+  add(svg,'text',{x:width/2,y:25},step===0?'初始：所有答案都还没考虑 A':`本步更新：容量 ${s.c}`);
+  for(let c=0;c<5;c++){
+   const x=left+c*pitch;
+   add(svg,'text',{x:x+pitch/2,y:60},`容量 ${c}`);
+   add(svg,'rect',{x:x+2,y:82,width:pitch-4,height:64,rx:4,fill:s.changed[c]?'var(--viz-series-1)':'var(--muted)','fill-opacity':s.changed[c]?.17:1});
+   add(svg,'text',{x:x+pitch/2,y:103},s.dp[c]);
+   add(svg,'text',{x:x+pitch/2,y:128},s.items[c]===0?'空':s.items[c]===1?'A':'A＋A');
+  }
+  if(s.c!==null){
+   const targetX=left+s.c*pitch,sourceX=left+(s.source+.5)*pitch;
+   const targetBox=add(svg,'rect',{x:2,y:82,width:pitch-4,height:64,rx:4,fill:'none',stroke:'var(--foreground)','stroke-width':1.5});
+   targetBox.style.transform=`translateX(${targetX}px)`;
+   if(animate&&prev.c!==null&&prev.c!==s.c&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    targetBox.animate([{transform:`translateX(${left+prev.c*pitch}px)`},{transform:`translateX(${targetX}px)`}],{duration:260,easing:'ease-out'});
+   }
+   const targetCenter=targetX+pitch/2;
+   add(svg,'text',{x:sourceX,y:166},'读来源');
+   add(svg,'text',{x:targetCenter,y:166},'写结果');
+   add(svg,'path',{d:`M ${sourceX} 181 C ${sourceX} 220, ${targetCenter} 220, ${targetCenter} 181`,fill:'none',stroke:'var(--foreground)','stroke-width':1.5});
+   add(svg,'path',{d:`M ${targetCenter-4} 187 L ${targetCenter} 181 L ${targetCenter+4} 187`,fill:'none',stroke:'var(--foreground)','stroke-width':1.5});
+   add(svg,'text',{x:width/2,y:239},`读到容量 ${s.source}：${s.sourceUpdated?'已考虑 A 的新答案':'尚未考虑 A 的旧答案'}`);
+   add(svg,'text',{x:width/2,y:265},`${s.oldCount?'A':'空'} ＋ 本次的 A → ${s.items[s.c]===2?'A＋A':'A'}`);
+   add(svg,'text',{x:width/2,y:292},s.items[s.c]===2?'价值 6：同一件 A 被用了两次':`价值 ${s.dp[s.c]}：只用了一个 A`);
+  }else{
+   add(svg,'text',{x:width/2,y:220},'“空”表示当前方案没有拿任何物品。');
+   add(svg,'text',{x:width/2,y:249},'点“下一步”，两边各更新一个位置。');
+  }
+  svg.setAttribute('aria-label',`${side==='ascending'?'正序':'倒序'}。${step===0?'尚未开始':`更新容量 ${s.c}，读取容量 ${s.source} 的价值 ${s.oldValue}，${s.sourceUpdated?'其中已包含 A':'其中还没有 A'}。`}数组：${s.dp.join('、')}。`);
+ }
+ function drawAll(animate=false,previous=step){root.querySelectorAll('[data-side]').forEach(p=>drawPanel(p,animate,previous));root.querySelector('[data-step]').textContent=step===0?'开始':`第 ${step} 次写入 / 共 3 次`;root.querySelector('[data-prev]').disabled=step===0;root.querySelector('[data-next]').disabled=step===3;}
+ root.querySelector('[data-prev]').addEventListener('click',()=>{if(step>0){const prev=step;step--;drawAll(true,prev);}});
+ root.querySelector('[data-next]').addEventListener('click',()=>{if(step<3){const prev=step;step++;drawAll(true,prev);}});
+ let widths='';new ResizeObserver(()=>{const current=Array.from(root.querySelectorAll('[data-side]')).map(p=>Math.round(p.getBoundingClientRect().width)).join(',');if(current!==widths){widths=current;drawAll();}}).observe(root);
+ drawAll();
+})();
+</script>
+</main>
+</body>
+</html>

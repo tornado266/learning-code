@@ -1,54 +1,56 @@
-# 机器学习与数据分析手记
+# Transformer、脑电信号与算法实现
 
-一段脑电信号和一句中文，各自怎样变成模型能读的数字？这是我自学脑机接口和语言模型时，动手实现的两个小实验。这个仓库还收录了我用中文影评练习 PyTorch 训练、比较两种分类器，以及用 pandas 追查销售额变化的过程。
+输入三个 token，一个两层语言模型怎样选出第四个？把输入换成四通道脑电，注意力又该看哪些位置？这里收录了我学习 CS336、脑电信号处理和数据结构时整理的代码。可以从下面三个入口直接看模型、频谱和算法。
 
-[看脑电切片的实现](eeg-patches/eeg_patches.py#L31)　·　[看 BPE 怎样学会合并](bpe-tokenizer/tokenizer.py#L104)　·　[打开订单分析笔记](sales-analysis/sales_analysis.ipynb)
+**[读两层 Transformer](cs336-transformer/model.py#L60)**　·　**[打开脑电频谱实验](eeg-signal-lab/frequency-and-phase.ipynb)**　·　**[看二分如何分割数组](algorithms/binary_search.py#L135)**
 
-[![四通道模拟脑电的切片图，橙色标出第二通道的第三个时间片，右侧是这个片段加入通道与时间嵌入后的 16 个分量。](docs/images/eeg-patch-grid.png)](eeg-patches/eeg_patches.py#L31)
+![三个代码实例。因果注意力中，位置三只能读取前三个位置；四通道脑电按时间切成三十二个向量；二分查找经过两次比较找到目标十一。](docs/images/learning-atlas.png)
 
-图里高亮的是第 2 通道从 0.50 秒开始的 32 个采样点。所有片段都经过同一个线性层，即使两个片段的波形一样，模型也能通过额外加上的嵌入区分它们来自哪个通道、哪个时段。四个通道各切八片，每条样本就得到 **32 个 16 维向量**。[运行 EEG 示例](eeg-patches/README.md)
+## 从字节到下一个 token
 
-## 一个空格，分词器会怎么处理？
+字节级 BPE 先解决输入问题。用仓库里的小语料训练后，`ab ab` 的五个字节变成 `[258, 259]`，第二个 token 连同空格一起编码。解码时，中英文、连续空格和换行都要能逐字还原。[分词器源码](bpe-tokenizer/tokenizer.py#L104) · [CS336 基础实验](cs336-foundations/README.md)
 
-用仓库里的小语料训练后，`ab ab` 从 5 个 UTF-8 字节变成了 2 个 token。中间的空格保留在第二个 token 里。
+`TinyTransformerLM` 接收 token ID，经词嵌入、带 RoPE 的多头因果注意力、RMSNorm 和 SwiGLU，最后为每个位置输出 260 个候选分数。改掉输入序列末尾的一个 token，可以直接检验前面位置的输出是否保持一致。[分步运行注意力实验](cs336-transformer/walkthrough.ipynb) · [查看模型结构](cs336-transformer/model.py#L60)
 
-| | 第一个 token | 第二个 token |
-| --- | --- | --- |
-| 包含的文本 | `ab` | 一个空格加上 `ab` |
-| 初始字节 | `97, 98` | `32, 97, 98` |
-| 合并后的 ID | `258` | `259` |
+这个模型有 **2 层、2 个注意力头、5,480 个可训练参数**。在两条合成序列上做一次 SGD 更新，同一批输入的交叉熵由 **5.5791 降到 5.4766**。生成时从 `[10, 20, 30]` 出发，每次追加当前得分最高的 ID，再计算下一步。[训练与贪心生成](cs336-transformer/demo.py) · [参数量与计算量估算](cs336-transformer/architecture.py)
 
-数字取决于这次训练学到的合并顺序。脚本还用带中文、连续空格和换行的文本检查解码结果是否逐字还原，并验证 `<|pad|>` 始终是一个 token。[看编码实现](bpe-tokenizer/tokenizer.py#L179) · [运行 BPE 示例](bpe-tokenizer/README.md)
+## 从模拟脑电到频谱与分类
 
-## 训练完，怎么检查模型？
+下图高亮了第二通道的一个时间片。每个通道以 128 Hz 采样，32 个点刚好是四分之一秒。每片经过共享的线性投影，再加上通道和时间嵌入，一条两秒的四通道样本就得到 **32 个 16 维向量**。
 
-**中文短句情感分类 · PyTorch**  
-用「电影 很 精彩」等 8 条短句训练词嵌入和线性层，再用「电影 很 好看」等 4 条重新组合的短句做验证。最后把词表和模型参数一起保存，重新加载，对同一批输入逐项核对预测概率和类别。[看训练脚本](pytorch-classifier/sentence_classifier.py) · [看重载后的两个断言](pytorch-classifier/sentence_classifier.py#L200)
+[![四条模拟波形按时间切片，右侧展示高亮片段的十六维嵌入。](docs/images/eeg-patch-grid.png)](eeg-patches/eeg_patches.py#L31)
 
-**表格数据二分类 · TensorFlow**  
-在 Wisconsin 乳腺癌公开数据集上，我用同一批样本比较逻辑回归和两层全连接网络。这次固定划分的测试集有 86 条记录，32 条属于正类。逻辑回归漏判了 1 条，全连接网络漏判了 2 条。笔记还挑出一条误判记录，拆开看各项特征怎样影响了逻辑回归的判断。[打开分类实验](tabular-classification/classification.ipynb) · [看数据划分和指标](tabular-classification/README.md)
+语言模型预测下一个 token 时要遮住未来位置。给整段 EEG 做分类时，一个时间片可以读取同一窗口里的其他片段。分类器用双向 Transformer 编码这些片段，再沿时间片与通道组成的序列取平均。两条随机样本最终输出形状为 `[2, 3]` 的三类分数。[分类器源码](eeg-patches/classifier.py) · [比较两种切片方式](eeg-patches/README.md)
 
-## 少掉的 1,000 元销售额去了哪里？
+信号处理笔记从采样和量化开始，接着观察移动平均与延迟反馈。最后把信号投影到复指数基上，手算 DFT，对照 NumPy 的 FFT，再用逆变换还原输入。[采样与量化](eeg-signal-lab/sampling-and-quantization.ipynb) · [从投影到 DFT](eeg-signal-lab/projection-to-dft.ipynb) · [全部信号实验](eeg-signal-lab/README.md)
 
-用 pandas 清洗 18 笔模拟订单，再把六月和七月的实付金额按渠道拆开。订单总额少了 1,000 元，变化全部出现在官网。
+## 数据结构与算法
 
-| 渠道 | 六月 | 七月 | 变化 |
-| --- | ---: | ---: | ---: |
-| 官网 | 1,650 元 | 650 元 | −1,000 元 |
-| 平台 | 950 元 | 950 元 | 0 元 |
+把 `[7, 2, 5, 10, 8]` 切成两段，怎样让较大一段的和尽可能小？把上限设为 17 时要分三段；上限放宽到 18 时，`[7, 2, 5]` 和 `[10, 8]` 就能满足条件。这份实现对**可行的上限**做二分。相同思路还可以用来求最小运载能力。[查看二分实现](algorithms/binary_search.py#L135)
 
-再按商品看，官网的咖啡壶从 900 元降到了 0 元。要分辨是缺货、下架还是访问量变化，还需要商品上架记录和流量数据。[打开含图表与明细的订单分析](sales-analysis/sales_analysis.ipynb)
+| 想看什么 | 实现入口 |
+| --- | --- |
+| 数组怎样扩容、原地去重，窗口何时收缩 | [动态数组](algorithms/dynamic_array.py) · [双指针](algorithms/two_pointers.py) · [滑动窗口](algorithms/sliding_window.py) |
+| 怎样快速算区间和，或批量更新一个区间 | [一维和二维前缀和](algorithms/prefix_sum.py) · [差分数组](algorithms/difference_array.py) |
+| 怎样只保留一行编辑距离状态，或按局部选择求解 | [动态规划](algorithms/dynamic_programming.py) · [贪心算法](algorithms/greedy.py) |
+| 怎样逐步观察栈、队列、排序与回溯 | [交互图解和运行方法](algorithms/README.md#逐步观察算法) |
+
+[浏览全部算法与边界样例](algorithms/README.md)
+
+## 分类与数据分析
+
+- **中文短句分类。** 用 8 条短句训练词嵌入和分类层，在 4 条重新组合的短句上验证。保存并重载词表和参数后，逐项核对概率与类别。[PyTorch 实现](pytorch-classifier/sentence_classifier.py)
+- **表格二分类。** 在同一组 86 条测试记录上比较逻辑回归和两层全连接网络。这次固定划分有 32 条正类，两种模型分别漏判 1 条和 2 条。笔记中还拆解了一条误判记录的特征贡献。[TensorFlow 实验](tabular-classification/classification.ipynb)
+- **电商订单分析。** 18 笔模拟订单的月销售额从 2,600 元降到 1,600 元。按渠道拆开，平台两月均为 950 元；再按商品拆分，官网咖啡壶一项减少了 900 元。[pandas 分析与图表](sales-analysis/sales_analysis.ipynb)
 
 <details>
-<summary>在本地跑第一个示例</summary>
+<summary>在本地运行 Transformer</summary>
 
-从仓库根目录执行以下命令，即可看到分词结果和编解码检查。训练语料随脚本提供。
+从仓库根目录运行。模型与合成输入均由脚本创建，CPU 即可复现实验。
 
 ```sh
-python -m pip install regex
-python bpe-tokenizer/tokenizer.py
+python -m pip install torch
+python cs336-transformer/demo.py
 ```
-
-其他实验各自列出了依赖和运行方法。[脑电切片](eeg-patches/README.md) · [中文短句分类](pytorch-classifier/README.md) · [表格数据二分类](tabular-classification/README.md) · [订单分析](sales-analysis/README.md)
 
 </details>

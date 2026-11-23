@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>四皇后回溯</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="四皇后回溯">
+<div id="four-queens-tutor">
+  <div class="viz-controls">
+    <button type="button" class="btn" data-prev>上一步</button>
+    <button type="button" class="btn btn-primary" data-next>下一步</button>
+    <span class="tabular-nums" data-count></span>
+  </div>
+  <p data-status aria-live="polite"></p>
+  <svg class="queens-board" role="img" aria-label="四皇后逐行搜索，展示失败、撤销和找到一个解的过程"></svg>
+  <div class="text-small">Q 皇后 · × 冲突 · ○ 可尝试 · — 本轮已试过</div>
+</div>
+<style>
+#four-queens-tutor .queens-board {display:block;width:100%;height:300px;}
+#four-queens-tutor .queens-board text {font-family:inherit;font-size:var(--font-size-base);fill:var(--foreground);text-anchor:middle;dominant-baseline:middle;}
+#four-queens-tutor [data-status] {min-height:3em;margin:12px 0 0;}
+</style>
+<script>
+(() => {
+ const root=document.getElementById('four-queens-tutor'), svg=root.querySelector('svg');
+ const states=[
+  {q:[],t:[],s:'开始：在第 1 行选择一列。'},
+  {q:[1],t:[],s:'第 1 行放第 1 列。第 2 行可以试第 3、4 列。'},
+  {q:[1,3],t:[],s:'第 2 行放第 3 列。第 3 行全部冲突，走不下去了。'},
+  {q:[1],t:[3],s:'撤销第 2 行的皇后，接着试这一行的第 4 列。'},
+  {q:[1,4],t:[],s:'第 2 行改放第 4 列。第 3 行只能试第 2 列。'},
+  {q:[1,4,2],t:[],s:'第 3 行放第 2 列。第 4 行全部冲突，再次失败。'},
+  {q:[1,4],t:[2],s:'撤销第 3 行的皇后。这一行没有其他位置可试。'},
+  {q:[1],t:[3,4],s:'再撤销第 2 行的皇后。这一行的可选位置也都试完了。'},
+  {q:[],t:[1],s:'退回第 1 行，撤销第 1 列，继续试第 2 列。'},
+  {q:[2],t:[],s:'第 1 行改放第 2 列。第 2 行只能试第 4 列。'},
+  {q:[2,4],t:[],s:'第 2 行放第 4 列。第 3 行只能试第 1 列。'},
+  {q:[2,4,1],t:[],s:'第 3 行放第 1 列。第 4 行可以放第 3 列。'},
+  {q:[2,4,1,3],t:[],s:'找到一个解：各行依次放在第 2、4、1、3 列。'}
+ ];
+ let index=0, oldWidth=0;
+ const ns='http://www.w3.org/2000/svg';
+ const add=(tag,attrs,txt)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(txt!==undefined)e.textContent=txt;svg.appendChild(e);return e;};
+ function draw(){
+  const width=root.getBoundingClientRect().width;if(!width)return;oldWidth=width;
+  const cell=Math.min(61,(width-48)/4),x0=(width-4*cell)/2+10,y0=32,state=states[index],row=state.q.length;
+  svg.setAttribute('viewBox',`0 0 ${width} 300`);svg.replaceChildren();
+  for(let c=0;c<4;c++)add('text',{x:x0+(c+.5)*cell,y:16},c+1);
+  for(let r=0;r<4;r++){
+   add('text',{x:x0-18,y:y0+(r+.5)*cell},r+1);
+   for(let c=0;c<4;c++){
+    const x=x0+c*cell,y=y0+r*cell;
+    add('rect',{x,y,width:cell,height:cell,fill:r===row?'var(--viz-series-1)':((r+c)%2?'var(--muted)':'var(--background)'),'fill-opacity':r===row?.12:1,stroke:'var(--border)','stroke-width':1});
+    if(state.q[r]===c+1){
+     add('circle',{cx:x+cell/2,cy:y+cell/2,r:cell*.29,fill:'var(--viz-series-1)','fill-opacity':.25});
+     add('text',{x:x+cell/2,y:y+cell/2},'Q');
+    }else if(r===row){
+     const conflict=state.q.some((col,pr)=>col===c+1||Math.abs(col-(c+1))===r-pr);
+     add('text',{x:x+cell/2,y:y+cell/2},conflict?'×':state.t.includes(c+1)?'—':'○');
+    }
+   }
+  }
+  root.querySelector('[data-status]').textContent=state.s;
+  root.querySelector('[data-count]').textContent=`${index} / ${states.length-1}`;
+  root.querySelector('[data-prev]').disabled=index===0;
+  root.querySelector('[data-next]').disabled=index===states.length-1;
+  svg.setAttribute('aria-label',state.s+' 已放皇后的列号：'+(state.q.join('、')||'无'));
+ }
+ root.querySelector('[data-prev]').addEventListener('click',()=>{if(index>0){index--;draw();}});
+ root.querySelector('[data-next]').addEventListener('click',()=>{if(index<states.length-1){index++;draw();}});
+ new ResizeObserver(()=>{if(Math.abs(root.getBoundingClientRect().width-oldWidth)>1)draw();}).observe(root);
+ draw();
+})();
+</script>
+</main>
+</body>
+</html>

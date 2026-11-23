@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二分查找的边界</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="二分查找的边界">
+<div id="algo-first-search">
+  <div class="viz-row"><strong>在有序数组中寻找 13</strong><span id="as-count" class="text-small">第 1 次比较</span></div>
+  <div class="as-array" role="img" aria-label="有序数组 1、3、5、7、9、11、13、15，当前比较中点 7。">
+    <div class="as-pointers" aria-hidden="true"></div>
+    <div class="as-values" aria-hidden="true"></div>
+    <div class="as-range" aria-hidden="true"><span>搜索范围</span></div>
+  </div>
+  <div id="as-detail" aria-live="polite">13 ＞ 7，下一步只保留右侧。</div>
+  <div class="viz-controls"><button type="button" class="btn" id="as-prev" disabled>上一步</button><button type="button" class="btn btn-primary" id="as-next">下一步</button></div>
+</div>
+<style>
+  #algo-first-search { color:var(--foreground); }
+  #algo-first-search .as-array { margin:16px 0; }
+  #algo-first-search .as-pointers,
+  #algo-first-search .as-values,
+  #algo-first-search .as-range { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:4px; }
+  #algo-first-search .as-pointers { min-height:28px; text-align:center; }
+  #algo-first-search .as-cell { display:flex; align-items:center; justify-content:center; height:52px; border:1px solid var(--border); color:var(--foreground); background:color-mix(in srgb,var(--viz-series-1) 10%,transparent); }
+  #algo-first-search .as-cell.as-mid { background:color-mix(in srgb,var(--viz-series-1) 28%,transparent); border-bottom:3px solid var(--viz-series-1); }
+  #algo-first-search .as-cell.as-out { background:transparent; color:var(--muted-foreground); text-decoration:line-through; border-style:dashed; }
+  #algo-first-search .as-range { padding-top:10px; }
+  #algo-first-search .as-range span { text-align:center; border-top:1px solid var(--foreground); padding-top:4px; }
+  #algo-first-search #as-detail { margin-bottom:12px; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('algo-first-search');
+  const values = [1,3,5,7,9,11,13,15];
+  const states = [
+    {left:0,right:7,mid:3,detail:'13 ＞ 7，下一步只保留右侧。'},
+    {left:4,right:7,mid:5,detail:'13 ＞ 11，下一步只保留右侧。'},
+    {left:6,right:7,mid:6,detail:'13 ＝ 13，找到第 7 个位置，结束。'}
+  ];
+  let step = 0;
+  const cells = root.querySelector('.as-values');
+  const pointers = root.querySelector('.as-pointers');
+  const range = root.querySelector('.as-range span');
+  const prev = root.querySelector('#as-prev');
+  const next = root.querySelector('#as-next');
+  values.forEach(value => {
+    const cell = document.createElement('div');
+    cell.className = 'as-cell tabular-nums';
+    cell.textContent = String(value);
+    cells.appendChild(cell);
+  });
+  function draw() {
+    const state = states[step];
+    Array.from(cells.children).forEach((cell,index) => {
+      cell.classList.toggle('as-out',index < state.left || index > state.right);
+      cell.classList.toggle('as-mid',index === state.mid);
+    });
+    const marker = document.createElement('span');
+    marker.className = 'text-small';
+    marker.style.gridColumn = String(state.mid + 1);
+    marker.textContent = step === 2 ? '找到' : '中点';
+    pointers.replaceChildren(marker);
+    range.style.gridColumn = `${state.left + 1} / ${state.right + 2}`;
+    root.querySelector('#as-count').textContent = `第 ${step + 1} 次比较`;
+    root.querySelector('#as-detail').textContent = state.detail;
+    root.querySelector('.as-array').setAttribute('aria-label',`有序数组 ${values.join('、')}。当前搜索第 ${state.left + 1} 至 ${state.right + 1} 个位置，中点值 ${values[state.mid]}。${state.detail}`);
+    prev.disabled = step === 0;
+    next.disabled = step === states.length - 1;
+  }
+  prev.addEventListener('click',() => { if(step > 0) { step--; draw(); } });
+  next.addEventListener('click',() => { if(step < states.length - 1) { step++; draw(); } });
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

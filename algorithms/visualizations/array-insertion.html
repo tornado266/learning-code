@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数组插入与元素搬移</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="数组插入与元素搬移">
+<div id="array-insertion-lesson">
+  <div class="viz-row"><strong>把 99 插入索引 1</strong><span id="ai-step" class="text-small">准备</span></div>
+  <div class="ai-track" role="img" aria-label="数组 10、20、30、40，末尾有一个空位。">
+    <div class="ai-slots" aria-hidden="true"><span>空</span><span>空</span><span>空</span><span>空</span><span>空</span></div>
+    <div class="ai-chip" data-number="10" aria-hidden="true"><span>10</span></div>
+    <div class="ai-chip" data-number="20" aria-hidden="true"><span>20</span></div>
+    <div class="ai-chip" data-number="30" aria-hidden="true"><span>30</span></div>
+    <div class="ai-chip" data-number="40" aria-hidden="true"><span>40</span></div>
+    <div class="ai-chip ai-new" data-number="99" aria-hidden="true" hidden><span>99</span></div>
+  </div>
+  <div class="ai-indices text-small" aria-hidden="true"><span>索引 0</span><span>索引 1</span><span>索引 2</span><span>索引 3</span><span>索引 4</span></div>
+  <div id="ai-detail" aria-live="polite">末尾已有一个空位。</div>
+  <div class="viz-controls"><button class="btn" type="button" id="ai-prev" disabled>上一步</button><button class="btn btn-primary" type="button" id="ai-next">下一步</button></div>
+</div>
+<style>
+  #array-insertion-lesson { color:var(--foreground); }
+  #array-insertion-lesson .ai-track { position:relative; height:56px; margin-top:20px; }
+  #array-insertion-lesson .ai-slots,
+  #array-insertion-lesson .ai-indices { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); text-align:center; }
+  #array-insertion-lesson .ai-slots span { display:flex; align-items:center; justify-content:center; height:56px; margin:0 3px; border:1px dashed var(--border); box-sizing:border-box; color:var(--muted-foreground); }
+  #array-insertion-lesson .ai-chip { position:absolute; top:0; left:0; width:20%; height:56px; transition:transform 380ms ease; }
+  #array-insertion-lesson .ai-chip span { display:flex; align-items:center; justify-content:center; height:56px; margin:0 3px; box-sizing:border-box; background:var(--secondary); color:var(--secondary-foreground); border:1px solid var(--border); }
+  #array-insertion-lesson .ai-new span { background:color-mix(in srgb,var(--viz-series-1) 25%,var(--background)); color:var(--foreground); border-bottom:3px solid var(--viz-series-1); }
+  #array-insertion-lesson .ai-indices { margin-top:7px; }
+  #array-insertion-lesson #ai-detail { margin:16px 0 12px; }
+  @media(prefers-reduced-motion:reduce) { #array-insertion-lesson .ai-chip { transition:none; } }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('array-insertion-lesson');
+  const states = [
+    {pos:[0,1,2,3],msg:'末尾已有一个空位。',values:'10、20、30、40、空位'},
+    {pos:[0,1,2,4],msg:'40 右移一格，为 30 腾出位置。',values:'10、20、30、空位、40'},
+    {pos:[0,1,3,4],msg:'30 右移一格，为 20 腾出位置。',values:'10、20、空位、30、40'},
+    {pos:[0,2,3,4],msg:'20 右移一格，索引 1 可以放入新元素。',values:'10、空位、20、30、40'},
+    {pos:[0,2,3,4],msg:'写入 99：移动 3 个旧元素，写入 1 个新元素。',values:'10、99、20、30、40'}
+  ];
+  const chips = [10,20,30,40].map(number => root.querySelector(`[data-number="${number}"]`));
+  const added = root.querySelector('[data-number="99"]');
+  const prev = root.querySelector('#ai-prev');
+  const next = root.querySelector('#ai-next');
+  let step = 0;
+  added.style.transform = 'translateX(100%)';
+  function draw() {
+    const state = states[step];
+    chips.forEach((chip,index) => { chip.style.transform = `translateX(${state.pos[index] * 100}%)`; });
+    added.hidden = step !== 4;
+    root.querySelector('#ai-step').textContent = step === 0 ? '准备' : `第 ${step} 步 / 共 4 步`;
+    root.querySelector('#ai-detail').textContent = state.msg;
+    root.querySelector('.ai-track').setAttribute('aria-label',`元素移动示意：${state.values}。${state.msg}`);
+    prev.disabled = step === 0;
+    next.disabled = step === 4;
+  }
+  prev.addEventListener('click',() => { if(step > 0) { step--; draw(); } });
+  next.addEventListener('click',() => { if(step < 4) { step++; draw(); } });
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

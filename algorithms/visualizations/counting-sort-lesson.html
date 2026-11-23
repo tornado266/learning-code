@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>计数排序</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="计数排序">
+<div id="counting-six">
+<div class="viz-controls"><button type="button" class="btn" data-prev>上一步</button><button type="button" class="btn btn-primary" data-next>下一步</button><span data-count class="tabular-nums"></span></div>
+<div data-status aria-live="polite" style="margin:10px 0;min-height:2.5em"></div>
+<svg role="img" aria-label="稳定计数排序。记录包含字母身份和数字键。先计数，再计算累计数量，最后从右往左将完整记录放入结果。" style="width:100%;display:block"></svg>
+</div>
+<style>
+#counting-six svg text{fill:var(--foreground);font-family:inherit;}
+#counting-six .record{transition:transform 450ms ease;}
+@media(prefers-reduced-motion:reduce){#counting-six .record{transition:none;}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('counting-six'),svg=root.querySelector('svg'),ns='http://www.w3.org/2000/svg';
+const records=[{id:'A',v:2},{id:'B',v:1},{id:'C',v:2},{id:'D',v:0},{id:'E',v:1},{id:'F',v:2}],states=[],counts=[0,0,0],bounds=[0,0,0],places={};
+function save(title,active='',prefix=false){states.push({title,active,prefix,counts:counts.slice(),bounds:bounds.slice(),places:{...places}});}
+save('① 按数字键统计次数');
+for(const r of records){counts[r.v]++;save('统计 '+r.id+'('+r.v+')',r.id);}
+for(let i=0;i<3;i++)bounds[i]=counts[i]+(i?bounds[i-1]:0);
+save('② 累计数量：1、3、6', '',true);
+for(let i=records.length-1;i>=0;i--){const r=records[i],p=bounds[r.v]-1;places[r.id]=p;bounds[r.v]--;save('③ '+r.id+'('+r.v+') → 结果下标 '+p,r.id,true);}
+save('完成 · 同键记录保持原先顺序','',true);
+let step=0,w=0,nodes=new Map();
+function e(tag,attrs={},parent=svg){const n=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n;}
+function t(str,x,y,parent=svg,anchor='middle'){const n=e('text',{x,y,'text-anchor':anchor,'dominant-baseline':'middle'},parent);n.textContent=str;return n;}
+function draw(){w=root.clientWidth;svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${w} 365`);svg.setAttribute('height',365);nodes=new Map();
+t('原记录（字母是身份，数字是排序键）',4,16,svg,'start').setAttribute('class','text-small');
+t('数字键',4,114,svg,'start');t('次数',4,150,svg,'start');t('累计 / 放置界限',4,192,svg,'start').setAttribute('class','text-small');
+for(let i=0;i<3;i++){const x=137+(i+.5)*(w-143)/3;t(i,x,114);const c=t('0',x,150);c.setAttribute('data-c',i);const b=t('—',x,192);b.setAttribute('data-b',i);}
+e('line',{x1:4,y1:170,x2:w-4,y2:170,stroke:'var(--border)'});t('排序结果',4,245,svg,'start');
+for(let i=0;i<6;i++){const x=(i+.5)*w/6;e('rect',{x:x-22,y:270,width:44,height:40,rx:5,fill:'none',stroke:'var(--border)'});t(i,x,336).setAttribute('class','text-small');}
+for(const r of records){const g=e('g',{class:'record'});e('rect',{x:-22,y:-20,width:44,height:40,rx:5,fill:'color-mix(in srgb,var(--viz-series-1) 18%,var(--background))'},g);t(r.id+'·'+r.v,0,0,g);nodes.set(r.id,g);}update(false);}
+function update(animate=true){const s=states[step];root.querySelector('[data-status]').textContent=s.title;root.querySelector('[data-count]').textContent=(step+1)+' / '+states.length;root.querySelector('[data-prev]').disabled=step===0;root.querySelector('[data-next]').disabled=step===states.length-1;
+for(let i=0;i<3;i++){svg.querySelector('[data-c="'+i+'"]').textContent=s.counts[i];svg.querySelector('[data-b="'+i+'"]').textContent=s.prefix?s.bounds[i]:'—';}
+for(let i=0;i<records.length;i++){const r=records[i],g=nodes.get(r.id),placed=Object.prototype.hasOwnProperty.call(s.places,r.id);g.style.transition=animate?'':'none';g.style.transform=`translate(${((placed?s.places[r.id]:i)+.5)*w/6}px,${placed?290:61}px)`;const box=g.querySelector('rect');box.setAttribute('fill',`color-mix(in srgb,var(--viz-series-${placed?'2':'1'}) 18%,var(--background))`);box.setAttribute('stroke',r.id===s.active?'var(--foreground)':'none');}}
+root.querySelector('[data-prev]').onclick=()=>{if(step>0){step--;update();}};root.querySelector('[data-next]').onclick=()=>{if(step<states.length-1){step++;update();}};new ResizeObserver(()=>{if(root.clientWidth!==w)draw();}).observe(root);draw();
+})();
+</script>
+</main>
+</body>
+</html>

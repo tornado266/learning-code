@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>基数排序</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="基数排序">
+<div id="radix-six">
+<div class="viz-controls"><button type="button" class="btn" data-prev>上一步</button><button type="button" class="btn btn-primary" data-next>下一步</button><span data-status aria-live="polite"></span></div>
+<svg role="img" aria-label="基数排序：从个位到十位再到百位稳定排序，下划线标出当前比较位。连线展示本轮数字的移动。" style="width:100%;display:block"></svg>
+</div>
+<style>
+#radix-six svg text{fill:var(--foreground);font-family:inherit;}
+#radix-six .number{transition:transform 550ms ease;}
+@media(prefers-reduced-motion:reduce){#radix-six .number{transition:none;}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('radix-six'),svg=root.querySelector('svg'),ns='http://www.w3.org/2000/svg',original=[170,45,75,90,802,24],states=[original.slice()];
+for(const exp of [1,10,100]){const buckets=Array.from({length:10},()=>[]);for(const x of states[states.length-1])buckets[Math.floor(x/exp)%10].push(x);states.push(buckets.flat());}
+let phase=0,w=0,nodes=new Map();const names=['原始顺序','① 个位稳定排序','② 十位稳定排序','③ 百位稳定排序'];
+function e(tag,attrs={},parent=svg){const n=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n;}
+function t(str,x,y,parent=svg){const n=e('text',{x,y,'text-anchor':'middle','dominant-baseline':'middle'},parent);n.textContent=str;return n;}
+function draw(){w=root.clientWidth;svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${w} 265`);svg.setAttribute('height',265);nodes=new Map();e('g',{'data-lines':''});
+t('本轮开始',w/2,28);t('本轮结果',w/2,235);
+for(let i=0;i<6;i++){const txt=t('',(i+.5)*w/6,65);txt.setAttribute('data-before',i);}
+for(const value of original){const g=e('g',{class:'number'});e('rect',{x:-23,y:-24,width:46,height:48,rx:5,fill:'color-mix(in srgb,var(--viz-series-1) 18%,var(--background))'},g);const digits=String(value).padStart(3,'0');for(let j=0;j<3;j++)t(digits[j],(j-1)*12,0,g);e('line',{x1:-17,x2:-7,y1:13,y2:13,stroke:'var(--foreground)','stroke-width':2,'data-underline':''},g);nodes.set(value,g);}update(false);}
+function update(animate=true){const before=states[Math.max(0,phase-1)],after=states[phase];root.querySelector('[data-status]').textContent=names[phase];root.querySelector('[data-prev]').disabled=phase===0;root.querySelector('[data-next]').disabled=phase===3;
+for(let i=0;i<6;i++)svg.querySelector('[data-before="'+i+'"]').textContent=String(before[i]).padStart(3,'0');
+const lines=svg.querySelector('[data-lines]');lines.replaceChildren();
+for(const v of original){const x1=(before.indexOf(v)+.5)*w/6,x2=(after.indexOf(v)+.5)*w/6;e('path',{d:`M ${x1} 85 C ${x1} 125 ${x2} 125 ${x2} 157`,fill:'none',stroke:'var(--border)','stroke-width':1.5},lines);const g=nodes.get(v);g.style.transition=animate?'':'none';g.style.transform=`translate(${x2}px,183px)`;const line=g.querySelector('[data-underline]');line.style.visibility=phase?'visible':'hidden';const dx=(2-phase)*12;line.setAttribute('x1',dx-5);line.setAttribute('x2',dx+5);}}
+root.querySelector('[data-prev]').onclick=()=>{if(phase>0){phase--;update();}};root.querySelector('[data-next]').onclick=()=>{if(phase<3){phase++;update();}};new ResizeObserver(()=>{if(root.clientWidth!==w)draw();}).observe(root);draw();
+})();
+</script>
+</main>
+</body>
+</html>

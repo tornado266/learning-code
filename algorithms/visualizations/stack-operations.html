@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>栈的压入与弹出</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="栈的压入与弹出">
+<div id="stack-lesson">
+  <div class="viz-row"><strong>栈的入栈、查看与出栈</strong><span id="sl-stage" class="text-small">入栈 10</span></div>
+  <div class="sl-diagram" role="img" aria-label="栈中只有 10，10 为栈顶。">
+    <div class="sl-frame" aria-hidden="true"></div>
+    <div class="sl-item" data-value="10" aria-hidden="true">10</div>
+    <div class="sl-item" data-value="20" aria-hidden="true" hidden>20</div>
+    <div class="sl-item" data-value="30" aria-hidden="true" hidden>30</div>
+    <span class="sl-top text-small" aria-hidden="true">← 栈顶</span>
+  </div>
+  <div id="sl-detail" aria-live="polite">10 已放入栈顶。</div>
+  <div class="viz-controls"><button id="sl-prev" type="button" class="btn" disabled>上一步</button><button id="sl-next" type="button" class="btn btn-primary">入栈 20</button></div>
+</div>
+<style>
+  #stack-lesson { color:var(--foreground); }
+  #stack-lesson .sl-diagram { height:166px; position:relative; margin:16px 0; max-width:400px; }
+  #stack-lesson .sl-frame { position:absolute; left:0; bottom:0; width:calc(100% - 80px); height:100%; border:1px solid var(--border); border-top:0; box-sizing:border-box; }
+  #stack-lesson .sl-item { position:absolute; left:7px; width:calc(100% - 94px); height:42px; display:flex; align-items:center; justify-content:center; background:color-mix(in srgb,var(--viz-series-1) 16%,transparent); color:var(--foreground); }
+  #stack-lesson .sl-item[hidden] { display:none; }
+  #stack-lesson .sl-item.sl-active { border-bottom:2px solid var(--viz-series-1); background:color-mix(in srgb,var(--viz-series-1) 28%,transparent); box-sizing:border-box; }
+  #stack-lesson .sl-top { position:absolute; right:0; height:42px; display:flex; align-items:center; transition:bottom 250ms ease; }
+  #stack-lesson #sl-detail { margin-bottom:12px; }
+  @media(prefers-reduced-motion:reduce) { #stack-lesson .sl-top { transition:none; } }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('stack-lesson');
+  const states = [
+    {n:1,action:'入栈 10',detail:'10 已放入栈顶。'},
+    {n:2,action:'入栈 20',detail:'20 成为新栈顶，10 留在下面。'},
+    {n:3,action:'入栈 30',detail:'30 最后入栈，成为新栈顶。'},
+    {n:3,action:'查看栈顶',detail:'读到 30；元素数量不变，30 仍在栈内。'},
+    {n:2,action:'出栈一次',detail:'移出 30；现在的栈顶是 20。'},
+    {n:1,action:'再出栈一次',detail:'移出 20；现在只剩 10。'}
+  ];
+  const values = [10,20,30];
+  const marks = values.map(value => root.querySelector(`[data-value="${value}"]`));
+  const prev = root.querySelector('#sl-prev');
+  const next = root.querySelector('#sl-next');
+  let step = 0;
+  marks.forEach((mark,index) => { mark.style.bottom = `${index * 48 + 7}px`; });
+  function draw() {
+    const state = states[step];
+    marks.forEach((mark,index) => {
+      mark.hidden = index >= state.n;
+      mark.classList.toggle('sl-active',index === state.n - 1);
+    });
+    root.querySelector('.sl-top').style.bottom = `${(state.n - 1) * 48 + 7}px`;
+    root.querySelector('#sl-stage').textContent = state.action;
+    root.querySelector('#sl-detail').textContent = state.detail;
+    root.querySelector('.sl-diagram').setAttribute('aria-label',`从栈底到栈顶依次为 ${values.slice(0,state.n).join('、')}。${state.detail}`);
+    prev.disabled = step === 0;
+    next.disabled = step === states.length - 1;
+    next.textContent = step === states.length - 1 ? '演示完成' : states[step + 1].action;
+  }
+  prev.addEventListener('click',() => { if(step > 0) { step--; draw(); } });
+  next.addEventListener('click',() => { if(step < states.length - 1) { step++; draw(); } });
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

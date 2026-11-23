@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三层汉诺塔</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="三层汉诺塔">
+<div id="hanoi-three-lesson">
+  <div class="viz-controls">
+    <button type="button" class="btn" data-prev>上一步</button>
+    <button type="button" class="btn btn-primary" data-next>下一步</button>
+    <span class="tabular-nums" data-step>0 / 7</span>
+  </div>
+  <p data-phase aria-live="polite">初始：把 A 上的三个盘子搬到 C</p>
+  <svg class="hanoi-view" role="img" aria-label="三盘汉诺塔，1 最小，3 最大。用上下步按钮查看七次移动。"></svg>
+  <div class="text-small" data-detail>1 最小 · 3 最大 · 每次只移动顶部的一个盘子</div>
+</div>
+<style>
+#hanoi-three-lesson .hanoi-view {display:block;width:100%;height:255px;overflow:visible;}
+#hanoi-three-lesson .hanoi-view text {fill:var(--foreground);font-family:inherit;font-size:var(--font-size-base);text-anchor:middle;}
+#hanoi-three-lesson [data-phase] {min-height:2.8em;margin:12px 0 0;}
+#hanoi-three-lesson [data-detail] {margin-top:8px;}
+</style>
+<script>
+(() => {
+ const root=document.getElementById('hanoi-three-lesson');
+ const svg=root.querySelector('svg'), prev=root.querySelector('[data-prev]'), next=root.querySelector('[data-next]');
+ const ns='http://www.w3.org/2000/svg', names=['A','B','C'];
+ const moves=[[1,0,2],[2,0,1],[1,2,1],[3,0,2],[1,1,0],[2,1,2],[1,0,2]];
+ const states=[[[3,2,1],[],[]]];
+ moves.forEach(([d,a,b])=>{const s=states[states.length-1].map(x=>x.slice());s[a].pop();s[b].push(d);states.push(s);});
+ let step=0, width=0, busy=false, groups={}, coords={};
+ const el=(tag,attrs,parent=svg)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));parent.appendChild(e);return e;};
+ function positions(s){const p={};s.forEach((stack,i)=>stack.forEach((d,j)=>p[d]={x:width*(i+0.5)/3,y:195-j*31}));return p;}
+ function labels(){
+   prev.disabled=busy||step===0;next.disabled=busy||step===7;
+   root.querySelector('[data-step]').textContent=step+' / 7';
+   root.querySelector('[data-phase]').textContent=step===0?'初始：把 A 上的三个盘子搬到 C':step<=3?'阶段一：把上面两个盘子从 A 搬到 B':step===4?'阶段二：把最大的盘子从 A 搬到 C':'阶段三：把两个小盘子从 B 搬到 C';
+   root.querySelector('[data-detail]').textContent=step===0?'1 最小 · 3 最大 · 每次只移动顶部的一个盘子':`第 ${step} 步：盘子 ${moves[step-1][0]}，${names[moves[step-1][1]]} → ${names[moves[step-1][2]]}`+(step===7?' · 全部完成':'');
+ }
+ function draw(){
+   width=root.getBoundingClientRect().width;if(!width)return;
+   svg.setAttribute('viewBox',`0 0 ${width} 255`);svg.replaceChildren();groups={};
+   names.forEach((name,i)=>{const x=width*(i+0.5)/3;
+     el('line',{x1:x,y1:78,x2:x,y2:210,stroke:'var(--border)','stroke-width':2});
+     el('line',{x1:x-width/7,y1:210,x2:x+width/7,y2:210,stroke:'var(--border)','stroke-width':2});
+     el('text',{x,y:240}).textContent=name;
+   });
+   coords=positions(states[step]);
+   [3,2,1].forEach(d=>{const g=el('g',{}),w=Math.min(150,width/3-18)*(0.34+0.22*d);groups[d]=g;
+     el('rect',{x:-w/2,y:-14,width:w,height:28,rx:6,fill:`var(--viz-series-${d})`,'fill-opacity':0.24},g);
+     el('text',{x:0,y:5},g).textContent=d;
+     g.style.transform=`translate(${coords[d].x}px,${coords[d].y}px)`;
+   });labels();
+ }
+ async function advance(delta){
+   if(busy||step+delta<0||step+delta>7)return;
+   const old=coords, moving=moves[delta>0?step:step-1][0];step+=delta;
+   coords=positions(states[step]);const a=old[moving],b=coords[moving],g=groups[moving];
+   g.style.transform=`translate(${b.x}px,${b.y}px)`;
+   if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+     busy=true;labels();
+     const animation=g.animate([{transform:`translate(${a.x}px,${a.y}px)`},{transform:`translate(${a.x}px,35px)`,offset:0.3},{transform:`translate(${b.x}px,35px)`,offset:0.7},{transform:`translate(${b.x}px,${b.y}px)`}],{duration:850,easing:'ease-in-out'});
+     try{await animation.finished;}catch(e){}
+     busy=false;
+   }labels();
+ }
+ prev.addEventListener('click',()=>advance(-1));next.addEventListener('click',()=>advance(1));
+ new ResizeObserver(()=>{const w=root.getBoundingClientRect().width;if(Math.abs(w-width)>1)draw();}).observe(root);
+ draw();
+})();
+</script>
+</main>
+</body>
+</html>

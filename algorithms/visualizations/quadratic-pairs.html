@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两两配对与二次复杂度</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="两两配对与二次复杂度">
+<div id="algo-pairs">
+  <label class="form-label" for="ap-size">上衣和裤子各有 <span id="ap-n" class="tabular-nums">3</span> 件／条</label>
+  <input class="form-range" id="ap-size" type="range" min="1" max="6" step="1" value="3" aria-label="上衣和裤子的各自数量">
+  <div class="viz-row"><span class="text-small">行：上衣 A–F；列：裤子 1–6</span><output id="ap-total" aria-live="polite" class="tabular-nums">共 9 种搭配</output></div>
+  <div id="ap-grid" role="img" aria-label="3 件上衣与 3 条裤子，共 9 种搭配。"></div>
+</div>
+<style>
+  #algo-pairs { color:var(--foreground); }
+  #algo-pairs #ap-grid { display:grid; gap:5px; margin-top:12px; }
+  #algo-pairs .ap-combination { display:flex; justify-content:center; align-items:center; height:38px; background:color-mix(in srgb,var(--viz-series-1) 20%,transparent); color:var(--foreground); }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('algo-pairs');
+  const input = root.querySelector('#ap-size');
+  const grid = root.querySelector('#ap-grid');
+  const letters = ['A','B','C','D','E','F'];
+  function draw() {
+    const n = Number(input.value);
+    root.querySelector('#ap-n').textContent = String(n);
+    root.querySelector('#ap-total').textContent = `共 ${n * n} 种搭配`;
+    grid.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+    grid.setAttribute('aria-label',`${n} 件上衣与 ${n} 条裤子，共 ${n * n} 种搭配，每格表示一种。`);
+    const fragment = document.createDocumentFragment();
+    for(let shirt = 0; shirt < n; shirt++) {
+      for(let trousers = 1; trousers <= n; trousers++) {
+        const mark = document.createElement('div');
+        mark.className = 'ap-combination tabular-nums';
+        mark.textContent = `${letters[shirt]}${trousers}`;
+        mark.setAttribute('aria-hidden','true');
+        fragment.appendChild(mark);
+      }
+    }
+    grid.replaceChildren(fragment);
+  }
+  input.addEventListener('input', draw);
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

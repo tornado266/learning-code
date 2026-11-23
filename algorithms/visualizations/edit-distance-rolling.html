@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>编辑距离的滚动数组</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="编辑距离的滚动数组">
+<div id="edit-distance-rolling-tutor">
+  <div class="viz-controls">
+    <button class="btn" type="button" data-back>上一步</button>
+    <button class="btn btn-primary" type="button" data-next>下一步</button>
+    <span class="text-small tabular-nums" data-progress></span>
+  </div>
+  <div class="ed-status" aria-live="polite" data-status></div>
+  <svg class="ed-diagram" role="img" aria-label="编辑距离最后一行的更新：一个数组和单独保存的左上角"></svg>
+  <div class="text-small ed-detail" data-detail></div>
+</div>
+<style>
+  #edit-distance-rolling-tutor { color: var(--foreground); }
+  #edit-distance-rolling-tutor .ed-status { margin-top: 12px; font-weight: 500; }
+  #edit-distance-rolling-tutor .ed-diagram { display: block; width: 100%; height: 278px; }
+  #edit-distance-rolling-tutor .ed-diagram text { fill: var(--foreground); font-family: inherit; font-size: var(--font-size-base); font-weight: 400; }
+  #edit-distance-rolling-tutor .ed-detail { margin-top: 4px; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('edit-distance-rolling-tutor');
+  const svg = root.querySelector('.ed-diagram');
+  const back = root.querySelector('[data-back]');
+  const next = root.querySelector('[data-next]');
+  const status = root.querySelector('[data-status]');
+  const detail = root.querySelector('[data-detail]');
+  const progress = root.querySelector('[data-progress]');
+  const prefixes = ['∅', 'c', 'cu', 'cut'];
+  const target = 'cut';
+  const values = [3, 1, 1, 2];
+  const frames = [];
+  let saved = 2;
+  for (let col = 1; col <= 3; col++) {
+    const up = values[col];
+    const left = values[col - 1];
+    const equal = 't' === target[col - 1];
+    const result = equal ? saved : Math.min(left, up, saved) + 1;
+    frames.push({ col, after: false, values: [...values], saved, savedCol: col - 1, up, result, equal });
+    values[col] = result;
+    saved = up;
+    frames.push({ col, after: true, values: [...values], saved, savedCol: col, up, result, equal });
+  }
+  let index = 0;
+  const ns = 'http://www.w3.org/2000/svg';
+  function node(name, attrs = {}, text) {
+    const item = document.createElementNS(ns, name);
+    for (const [key, value] of Object.entries(attrs)) item.setAttribute(key, value);
+    if (text !== undefined) item.textContent = text;
+    svg.appendChild(item);
+    return item;
+  }
+  function label(x, y, text, small = false) {
+    return node('text', { x, y, 'text-anchor': 'middle', class: small ? 'ed-small' : '' }, text);
+  }
+  function draw(animate = false, previousIndex = index) {
+    const frame = frames[index];
+    const width = Math.max(1, Math.round(svg.getBoundingClientRect().width));
+    if (width < 200) return;
+    svg.replaceChildren();
+    svg.setAttribute('viewBox', `0 0 ${width} 278`);
+    const margin = 8;
+    const gap = 8;
+    const cellWidth = (width - 2 * margin - 3 * gap) / 4;
+    const center = col => margin + col * (cellWidth + gap) + cellWidth / 2;
+    const registerX = width / 2;
+    const registerWidth = Math.min(196, width - 16);
+    node('rect', { x: registerX - registerWidth / 2, y: 8, width: registerWidth, height: 80, rx: 6, fill: 'color-mix(in srgb, var(--viz-series-2) 10%, transparent)', stroke: 'var(--border)' });
+    label(registerX, 29, frame.after ? (frame.col === 3 ? '最后保留的旧值' : '保存给下一格的左上角') : '当前保存的左上角', true);
+    label(registerX, 53, `leftup = ${frame.saved}`);
+    label(registerX, 75, `ca → ${prefixes[frame.savedCol]}`, true);
+    for (let col = 0; col <= 3; col++) {
+      const updated = col === 0 || col < frame.col || (frame.after && col === frame.col);
+      const x = margin + col * (cellWidth + gap);
+      node('rect', { x, y: 143, width: cellWidth, height: 98, rx: 5, fill: updated ? 'color-mix(in srgb, var(--viz-series-1) 10%, transparent)' : 'transparent', stroke: 'var(--border)' });
+      label(center(col), 161, `dp[${col}]`, true);
+      label(center(col), 181, prefixes[col]);
+      label(center(col), 203, String(frame.values[col]));
+      label(center(col), 226, updated ? '新：cat' : '旧：ca', true);
+    }
+    const currentX = margin + frame.col * (cellWidth + gap);
+    const focus = node('rect', { x: currentX, y: 143, width: cellWidth, height: 98, rx: 5, fill: 'none', stroke: 'var(--viz-series-1)', 'stroke-width': 2 });
+    label(center(frame.col), 264, frame.after ? '已写入' : '待更新', true);
+    const lineStartX = frame.after ? center(frame.col) : registerX;
+    const lineStartY = frame.after ? 142 : 89;
+    const lineEndX = frame.after ? registerX : center(frame.col);
+    const lineEndY = frame.after ? 89 : 142;
+    node('path', { d: `M ${lineStartX} ${lineStartY} C ${lineStartX} 114, ${lineEndX} 114, ${lineEndX} ${lineEndY}`, fill: 'none', stroke: 'var(--viz-series-2)', 'stroke-width': 1.5 });
+    node('path', { d: frame.after ? `M ${lineEndX-4} 95 L ${lineEndX} 89 L ${lineEndX+4} 95` : `M ${lineEndX-4} 136 L ${lineEndX} 142 L ${lineEndX+4} 136`, fill: 'none', stroke: 'var(--viz-series-2)', 'stroke-width': 1.5 });
+    status.textContent = `${frame.after ? '写入完成' : '准备计算'}：cat → ${prefixes[frame.col]}`;
+    progress.textContent = `${index + 1} / ${frames.length}`;
+    detail.textContent = frame.after
+      ? (frame.col === 3 ? '整行完成；最后一格就是 cat → cut 的最少次数。' : `原来的上方值 ${frame.up} 已保存，下一格会用它作左上角。`)
+      : (frame.equal ? `末尾同为 t；保留字符，读取左上角保存的 ${frame.saved}。` : `末尾 t 与 ${target[frame.col-1]} 不同；比较三种操作。`);
+    back.disabled = index === 0;
+    next.disabled = index === frames.length - 1;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (animate && !reduced) {
+      const previous = frames[previousIndex];
+      if (previous.col !== frame.col) {
+        const delta = (previous.col - frame.col) * (cellWidth + gap);
+        focus.animate([{ transform: `translateX(${delta}px)` }, { transform: 'translateX(0px)' }], { duration: 260, easing: 'ease-out' });
+      } else if (frame.after && index > previousIndex) {
+        const flyingValue = label(center(frame.col), 203, String(frame.up));
+        flyingValue.animate([{ transform: 'translate(0px, 0px)' }, { transform: `translate(${registerX - center(frame.col)}px, -150px)` }], { duration: 360, easing: 'ease-in-out', fill: 'forwards' }).onfinish = () => flyingValue.remove();
+      }
+    }
+  }
+  function move(delta) {
+    const previous = index;
+    index = Math.max(0, Math.min(frames.length - 1, index + delta));
+    draw(true, previous);
+  }
+  back.addEventListener('click', () => move(-1));
+  next.addEventListener('click', () => move(1));
+  new ResizeObserver(() => draw()).observe(svg);
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

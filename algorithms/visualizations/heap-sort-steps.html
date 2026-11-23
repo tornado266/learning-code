@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>堆排序</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="堆排序">
+<div id="heap-sort-lesson">
+  <div class="viz-controls">
+    <button type="button" class="btn" data-prev>上一步</button>
+    <button type="button" class="btn btn-primary" data-next>下一步</button>
+    <span class="tabular-nums" data-count></span>
+  </div>
+  <div data-status aria-live="polite" style="margin-top:12px;min-height:2.5em"></div>
+  <svg class="heap-diagram" role="img" aria-label="堆排序：上方为当前堆的树形表示，下方为完整数组。已就位的元素不再出现在树中。" style="display:block;width:100%"></svg>
+  <div class="viz-row text-small">
+    <span><span class="key active-key"></span>仍在堆内</span>
+    <span><span class="key sorted-key"></span>已就位 ✓</span>
+  </div>
+</div>
+<style>
+#heap-sort-lesson .heap-diagram text {fill:var(--foreground);font-family:inherit;}
+#heap-sort-lesson .key {display:inline-block;width:12px;height:12px;margin-right:5px;vertical-align:middle;}
+#heap-sort-lesson .active-key {background:var(--viz-series-1);}
+#heap-sort-lesson .sorted-key {background:var(--viz-series-2);}
+#heap-sort-lesson .moving {transition:transform 380ms ease;}
+@media(prefers-reduced-motion:reduce){#heap-sort-lesson .moving{transition:none;}}
+</style>
+<script>
+(() => {
+  const root=document.getElementById('heap-sort-lesson');
+  const svg=root.querySelector('svg');
+  const ns='http://www.w3.org/2000/svg';
+  const initial=[9,7,8,1,5,6,2], a=initial.slice(), states=[];
+  const save=(n,title,pair=[],ready=true)=>states.push({a:a.slice(),n,title,pair,ready});
+  save(7,'大顶堆已建好 · 堆顶 9 是最大值');
+  for(let end=a.length-1;end>0;end--){
+    const big=a[0],last=a[end];
+    [a[0],a[end]]=[a[end],a[0]];
+    save(end,'交换 '+big+' 与 '+last+' · '+big+' 已就位',[big,last],false);
+    let i=0;
+    while(true){
+      let m=i,l=2*i+1,r=l+1;
+      if(l<end&&a[l]>a[m])m=l;
+      if(r<end&&a[r]>a[m])m=r;
+      if(m===i)break;
+      const x=a[i],y=a[m];
+      [a[i],a[m]]=[a[m],a[i]];
+      save(end,'向下调整 · 交换 '+x+' 与 '+y,[x,y],false);
+      i=m;
+    }
+    save(end,'堆已修复 · 下一轮最大值为 '+a[0]);
+  }
+  save(0,'排序完成 · 全部元素已就位');
+  let step=0;
+  function el(tag,attrs={},parent=svg){const e=document.createElementNS(ns,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.appendChild(e);return e;}
+  function label(t,x,y,parent=svg,cls=''){const e=el('text',{x,y,'text-anchor':'middle','dominant-baseline':'middle',class:cls},parent);e.textContent=t;return e;}
+  let treeNodes=new Map(),arrayNodes=new Map(),width=0;
+  function pos(index){const level=Math.floor(Math.log2(index+1));const offset=index-(2**level-1);return {x:width*(offset+.5)/(2**level),y:48+level*72};}
+  function draw(){
+    width=Math.max(300,Math.round(root.getBoundingClientRect().width));
+    svg.setAttribute('viewBox','0 0 '+width+' 355');svg.setAttribute('height','355');svg.replaceChildren();treeNodes=new Map();arrayNodes=new Map();
+    label('当前堆',width/2,15);
+    const edges=el('g',{'data-edges':''});
+    for(let i=1;i<7;i++){const p=pos(Math.floor((i-1)/2)),q=pos(i);el('line',{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:'var(--border)','stroke-width':1.5,'data-index':i},edges);}
+    for(const v of initial){const g=el('g',{class:'moving'});el('circle',{r:22,fill:'color-mix(in srgb,var(--viz-series-1) 17%,var(--background))',stroke:'var(--border)'},g);label(v,0,0,g);treeNodes.set(v,g);}
+    label('同一个数组 · 下标从 0 开始',width/2,236);
+    const cell=(width-16)/7;
+    for(let i=0;i<7;i++){
+      el('rect',{x:8+i*cell+2,y:259,width:cell-4,height:46,rx:5,'data-slot':i});
+      label(i,8+(i+.5)*cell,325,svg,'text-small');
+      const check=label('✓',8+(i+.5)*cell,346,svg,'text-small');check.setAttribute('data-check',i);
+    }
+    for(const v of initial){const g=el('g',{class:'moving'});label(v,0,282,g);arrayNodes.set(v,g);}
+    update(false);
+  }
+  function update(animate=true){
+    const s=states[step],cell=(width-16)/7;
+    root.querySelector('[data-count]').textContent=(step+1)+' / '+states.length;
+    root.querySelector('[data-status]').textContent=s.title;
+    root.querySelector('[data-prev]').disabled=step===0;root.querySelector('[data-next]').disabled=step===states.length-1;
+    for(let i=0;i<7;i++){
+      const v=s.a[i],g=treeNodes.get(v),q=pos(i),ag=arrayNodes.get(v);
+      g.style.transition=animate?'':'none';ag.style.transition=animate?'':'none';
+      g.style.transform='translate('+q.x+'px,'+q.y+'px)';g.style.visibility=i<s.n?'visible':'hidden';
+      g.querySelector('circle').setAttribute('stroke-width',s.pair.includes(v)?3:1);
+      g.querySelector('circle').setAttribute('stroke',s.pair.includes(v)?'var(--viz-series-1)':'var(--border)');
+      ag.style.transform='translate('+(8+(i+.5)*cell)+'px,0px)';
+      svg.querySelector('[data-slot="'+i+'"]').setAttribute('fill','color-mix(in srgb,var(--viz-series-'+(i<s.n?'1':'2')+') 20%,transparent)');
+      svg.querySelector('[data-check="'+i+'"]').style.visibility=i>=s.n?'visible':'hidden';
+    }
+    for(const edge of svg.querySelectorAll('[data-index]'))edge.style.visibility=Number(edge.getAttribute('data-index'))<s.n?'visible':'hidden';
+  }
+  root.querySelector('[data-prev]').addEventListener('click',()=>{if(step>0){step--;update();}});
+  root.querySelector('[data-next]').addEventListener('click',()=>{if(step<states.length-1){step++;update();}});
+  new ResizeObserver(draw).observe(root);
+  draw();
+})();
+</script>
+</main>
+</body>
+</html>

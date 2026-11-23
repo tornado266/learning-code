@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>桶排序</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="桶排序">
+<div id="bucket-six">
+<div class="viz-controls"><button class="btn" type="button" data-prev>上一步</button><button class="btn btn-primary" type="button" data-next>下一步</button><span data-phase aria-live="polite"></span></div>
+<svg role="img" aria-label="桶排序：六个数字先按十位范围进入五个桶，桶内排序后，按桶顺序合并。" style="width:100%;display:block"></svg>
+</div>
+<style>
+#bucket-six svg text{fill:var(--foreground);font-family:inherit;}
+#bucket-six .token{transition:transform 600ms ease;}
+@media(prefers-reduced-motion:reduce){#bucket-six .token{transition:none;}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('bucket-six'),svg=root.querySelector('svg'),ns='http://www.w3.org/2000/svg';
+const input=[42,7,31,18,3,26],buckets=Array.from({length:5},(_,i)=>input.filter(x=>Math.floor(x/10)===i)),sorted=buckets.map(b=>b.slice().sort((a,b)=>a-b)),output=sorted.flat();
+const phases=['① 原始数组','② 按范围入桶','③ 每个桶内部排序','④ 按桶顺序合并'];let phase=0,w=0,nodes=new Map();
+function e(tag,attrs={},parent=svg){const n=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n;}
+function t(str,x,y,parent=svg,anchor='middle'){const n=e('text',{x,y,'text-anchor':anchor,'dominant-baseline':'middle'},parent);n.textContent=str;return n;}
+function draw(){w=root.clientWidth;svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${w} 455`);svg.setAttribute('height',455);nodes=new Map();
+t('输入',8,20,svg,'start');t('合并结果',8,387,svg,'start');
+for(let i=0;i<5;i++){const y=103+i*55;t(`${i*10}～${i*10+9}`,12,y,svg,'start');e('line',{x1:86,y1:y+23,x2:w-12,y2:y+23,stroke:'var(--border)'});t(`桶 ${i}`,w-12,y,svg,'end').setAttribute('class','text-small');}
+for(const value of input){const g=e('g',{class:'token'});e('rect',{x:-20,y:-19,width:40,height:38,rx:6,fill:'color-mix(in srgb,var(--viz-series-1) 18%,var(--background))'},g);t(value,0,0,g);nodes.set(value,g);}update(false);}
+function update(animate=true){root.querySelector('[data-phase]').textContent=phases[phase];root.querySelector('[data-prev]').disabled=phase===0;root.querySelector('[data-next]').disabled=phase===3;
+for(const value of input){let x,y;const bucket=Math.floor(value/10);if(phase===0){x=(input.indexOf(value)+.5)*w/6;y=52;}else if(phase===3){x=(output.indexOf(value)+.5)*w/6;y=423;}else{const rank=(phase===1?buckets:sorted)[bucket].indexOf(value);x=111+rank*49;y=103+bucket*55;}
+const g=nodes.get(value);g.style.transition=animate?'':'none';g.style.transform=`translate(${x}px,${y}px)`;g.querySelector('rect').setAttribute('fill',`color-mix(in srgb,var(--viz-series-${phase===3?'2':'1'}) 18%,var(--background))`);}}
+root.querySelector('[data-prev]').onclick=()=>{if(phase>0){phase--;update();}};root.querySelector('[data-next]').onclick=()=>{if(phase<3){phase++;update();}};
+new ResizeObserver(()=>{if(root.clientWidth!==w)draw();}).observe(root);draw();
+})();
+</script>
+</main>
+</body>
+</html>

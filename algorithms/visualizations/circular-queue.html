@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>循环队列的首尾指针</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="循环队列的首尾指针">
+<div id="cq-lesson">
+  <div class="viz-row"><strong>容量固定为 5</strong><span id="cq-count" class="tabular-nums">size = 5（已满）</span></div>
+  <div class="cq-front text-small" aria-hidden="true"><span>队首 ↓</span></div>
+  <div class="cq-cells" role="img" aria-label="数组中依次为 A、B、C、D、E，队首索引为 0。"></div>
+  <div class="cq-indices text-small" aria-hidden="true"><span>索引 0</span><span>索引 1</span><span>索引 2</span><span>索引 3</span><span>索引 4</span></div>
+  <svg class="cq-wrap" width="100%" height="54" role="img" aria-label="索引超过 4 后回到 0。">
+    <defs><marker id="cq-arrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 8 4 L 0 8 Z" fill="var(--foreground)"></path></marker></defs>
+    <path class="cq-route" fill="none" stroke="var(--foreground)" stroke-width="1" marker-end="url(#cq-arrow)"></path>
+    <text class="cq-wrap-label text-small" y="47" text-anchor="middle" fill="var(--foreground)">索引 4 的下一格是索引 0</text>
+  </svg>
+  <div id="cq-order" class="tabular-nums" aria-live="polite">出队顺序：A → B → C → D → E</div>
+  <div class="viz-controls"><button id="cq-prev" type="button" class="btn" disabled>上一步</button><button id="cq-next" type="button" class="btn btn-primary">出队 A</button></div>
+</div>
+<style>
+  #cq-lesson { color:var(--foreground); }
+  #cq-lesson .cq-front,
+  #cq-lesson .cq-cells,
+  #cq-lesson .cq-indices { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; text-align:center; }
+  #cq-lesson .cq-front { margin-top:16px; min-height:27px; }
+  #cq-lesson .cq-cell { height:50px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:color-mix(in srgb,var(--viz-series-1) 13%,transparent); color:var(--foreground); }
+  #cq-lesson .cq-cell.cq-head { border-bottom:3px solid var(--viz-series-1); }
+  #cq-lesson .cq-cell.cq-empty { background:transparent; border-style:dashed; color:var(--muted-foreground); }
+  #cq-lesson .cq-indices { margin-top:6px; }
+  #cq-lesson .cq-wrap { display:block; }
+  #cq-lesson #cq-order { margin:4px 0 12px; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('cq-lesson');
+  const states = [
+    {values:['A','B','C','D','E'],front:0,size:5,action:'已依次入队 A 至 E'},
+    {values:[null,'B','C','D','E'],front:1,size:4,action:'出队 A'},
+    {values:[null,null,'C','D','E'],front:2,size:3,action:'出队 B'},
+    {values:['F',null,'C','D','E'],front:2,size:4,action:'入队 F：写入索引 0'},
+    {values:['F','G','C','D','E'],front:2,size:5,action:'入队 G：写入索引 1'}
+  ];
+  const cells = root.querySelector('.cq-cells');
+  const prev = root.querySelector('#cq-prev');
+  const next = root.querySelector('#cq-next');
+  let step = 0;
+  for(let index = 0; index < 5; index++) {
+    const cell = document.createElement('div');
+    cell.className = 'cq-cell';
+    cell.setAttribute('aria-hidden','true');
+    cells.appendChild(cell);
+  }
+  function draw() {
+    const state = states[step];
+    Array.from(cells.children).forEach((cell,index) => {
+      cell.textContent = state.values[index] === null ? '空位' : state.values[index];
+      cell.classList.toggle('cq-head',index === state.front);
+      cell.classList.toggle('cq-empty',state.values[index] === null);
+    });
+    const order = Array.from({length:state.size},(_,index) => state.values[(state.front + index) % 5]);
+    root.querySelector('.cq-front span').style.gridColumn = String(state.front + 1);
+    root.querySelector('#cq-count').textContent = `size = ${state.size}${state.size === 5 ? '（已满）' : ''}`;
+    root.querySelector('#cq-order').textContent = `出队顺序：${order.join(' → ')}`;
+    cells.setAttribute('aria-label',`${state.action}。数组按索引从 0 到 4 依次为 ${state.values.map(value => value === null ? '空位' : value).join('、')}。队首索引 ${state.front}。出队顺序 ${order.join('、')}。`);
+    prev.disabled = step === 0;
+    next.disabled = step === states.length - 1;
+    next.textContent = step === states.length - 1 ? '演示完成' : states[step + 1].action;
+  }
+  function resize() {
+    const svg = root.querySelector('.cq-wrap');
+    const width = svg.getBoundingClientRect().width;
+    if(width <= 0) return;
+    const left = width / 10;
+    const right = width * 0.9;
+    svg.setAttribute('viewBox',`0 0 ${width} 54`);
+    root.querySelector('.cq-route').setAttribute('d',`M ${right} 3 V 15 Q ${right} 23 ${right - 8} 23 H ${left + 8} Q ${left} 23 ${left} 15 V 5`);
+    root.querySelector('.cq-wrap-label').setAttribute('x',String(width / 2));
+  }
+  prev.addEventListener('click',() => { if(step > 0) { step--; draw(); } });
+  next.addEventListener('click',() => { if(step < states.length - 1) { step++; draw(); } });
+  draw();
+  new ResizeObserver(resize).observe(root);
+  resize();
+})();
+</script>
+</main>
+</body>
+</html>

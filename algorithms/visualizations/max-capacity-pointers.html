@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>盛水容器与双指针</title>
+<style>
+:root {
+  color-scheme: light;
+  --background: #f7f7f3;
+  --foreground: #172b31;
+  --muted: #e7eeea;
+  --muted-foreground: #42595d;
+  --border: #b6c9c7;
+  --card: #ffffff;
+  --card-foreground: #172b31;
+  --primary: #14676a;
+  --primary-foreground: #ffffff;
+  --secondary: #dfede9;
+  --secondary-foreground: #164f53;
+  --accent: #d7eeeb;
+  --accent-foreground: #174a4b;
+  --destructive: #a93c31;
+  --ring: #087b7e;
+  --font-size-base: 16px;
+  --viz-series-1: #197a77;
+  --viz-series-2: #bc532c;
+  --viz-series-3: #4b65aa;
+  --viz-series-4: #95642b;
+  --viz-series-5: #825698;
+  --viz-series-6: #587829;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color:var(--foreground); background:var(--background); font: 16px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+main { max-width: 850px; margin: clamp(10px, 5vw, 54px) auto; padding: clamp(14px, 4vw, 34px); background:#fff; }
+svg { max-width:100%; height:auto; display:block; }
+button, input { font:inherit; }
+button { color:var(--foreground); border:1px solid var(--border); background:#fff; padding:7px 14px; border-radius:5px; cursor:pointer; }
+button.btn-primary { background:var(--primary); color:white; border-color:var(--primary); }
+button:disabled { opacity:.48; cursor:default; }
+button:focus-visible, input:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+.viz-row, .viz-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.viz-row { justify-content:space-between; margin-bottom:12px; }
+.viz-controls { margin-top:16px; }
+.text-small { color:var(--muted-foreground); font-size:.88rem; }
+@media (max-width:500px) { main { margin:0; min-height:100vh; } }
+
+</style>
+</head>
+<body>
+<main aria-label="盛水容器与双指针">
+<div id="max-capacity-pointers-tutor">
+  <div class="viz-controls">
+    <button class="btn" type="button" data-previous>上一步</button>
+    <button class="btn btn-primary" type="button" data-next>下一步</button>
+    <span class="text-small tabular-nums" data-progress></span>
+  </div>
+  <div class="mc-status tabular-nums" aria-live="polite" data-status></div>
+  <svg class="mc-diagram" role="img" aria-label="高度为2、8、4、3、6的五条备选边界，阴影表示当前两条边界能围成的容量"></svg>
+  <div class="text-small" data-detail></div>
+</div>
+<style>
+  #max-capacity-pointers-tutor { color: var(--foreground); }
+  #max-capacity-pointers-tutor .mc-status { margin-top: 12px; font-weight: 500; }
+  #max-capacity-pointers-tutor .mc-diagram { display: block; width: 100%; height: 320px; }
+  #max-capacity-pointers-tutor .mc-diagram text { fill: var(--foreground); font-family: inherit; font-size: var(--font-size-base); font-weight: 400; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('max-capacity-pointers-tutor');
+  const svg = root.querySelector('.mc-diagram');
+  const previous = root.querySelector('[data-previous]');
+  const next = root.querySelector('[data-next]');
+  const progress = root.querySelector('[data-progress]');
+  const status = root.querySelector('[data-status]');
+  const detail = root.querySelector('[data-detail]');
+  const heights = [2, 8, 4, 3, 6];
+  const states = [];
+  let left = 0, right = heights.length - 1, best = 0;
+  while (left < right) {
+    const area = Math.min(heights[left], heights[right]) * (right - left);
+    best = Math.max(best, area);
+    states.push({ left, right, area, best });
+    if (heights[left] <= heights[right]) left++;
+    else right--;
+  }
+  let index = 0;
+  let pendingFrame = null;
+  let busy = false;
+  const ns = 'http://www.w3.org/2000/svg';
+  function element(tag, attrs, text) {
+    const el = document.createElementNS(ns, tag);
+    for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+    if (text !== undefined) el.textContent = text;
+    svg.appendChild(el);
+    return el;
+  }
+  function label(x, y, text, anchor = 'middle') {
+    return element('text', { x, y, 'text-anchor': anchor }, text);
+  }
+  function updateControls() {
+    previous.disabled = busy || index === 0;
+    next.disabled = busy || index === states.length - 1;
+  }
+  function render(from = states[index], fraction = 1) {
+    const state = states[index];
+    const width = Math.round(svg.getBoundingClientRect().width);
+    if (width < 200) return;
+    const baseline = 240;
+    const unitHeight = 22;
+    const x = i => 32 + i * (width - 64) / 4;
+    const y = height => baseline - height * unitHeight;
+    const lerp = (a, b) => a + (b - a) * fraction;
+    const leftX = lerp(x(from.left), x(state.left));
+    const rightX = lerp(x(from.right), x(state.right));
+    const leftH = lerp(heights[from.left], heights[state.left]);
+    const rightH = lerp(heights[from.right], heights[state.right]);
+    const waterH = lerp(Math.min(heights[from.left], heights[from.right]), Math.min(heights[state.left], heights[state.right]));
+    svg.replaceChildren();
+    svg.setAttribute('viewBox', `0 0 ${width} 320`);
+    label(8, 25, '高度', 'start');
+    element('rect', { x: leftX, y: y(waterH), width: rightX - leftX, height: waterH * unitHeight, fill: 'var(--viz-series-1)', 'fill-opacity': .17, 'data-water': '' });
+    element('line', { x1: leftX, x2: rightX, y1: y(waterH), y2: y(waterH), stroke: 'var(--viz-series-1)', 'stroke-width': 1 });
+    for (let i = 0; i < heights.length; i++) {
+      element('line', { x1: x(i), x2: x(i), y1: baseline, y2: y(heights[i]), stroke: 'var(--border)', 'stroke-width': 5 });
+      label(x(i), y(heights[i]) - 12, String(heights[i]));
+      label(x(i), 262, String(i));
+    }
+    element('line', { x1: 15, x2: width - 15, y1: baseline, y2: baseline, stroke: 'var(--border)', 'stroke-width': 1 });
+    element('line', { x1: leftX, x2: leftX, y1: baseline, y2: y(leftH), stroke: 'var(--viz-series-1)', 'stroke-width': 5 });
+    element('line', { x1: rightX, x2: rightX, y1: baseline, y2: y(rightH), stroke: 'var(--viz-series-1)', 'stroke-width': 5 });
+    label(leftX, 281, 'i');
+    label(rightX, 281, 'j');
+    element('line', { x1: leftX, x2: rightX, y1: 292, y2: 292, stroke: 'var(--foreground)', 'stroke-width': 1 });
+    element('line', { x1: leftX, x2: leftX, y1: 288, y2: 296, stroke: 'var(--foreground)', 'stroke-width': 1 });
+    element('line', { x1: rightX, x2: rightX, y1: 288, y2: 296, stroke: 'var(--foreground)', 'stroke-width': 1 });
+    label((leftX + rightX) / 2, 315, `间距 ${state.right - state.left}`);
+    progress.textContent = `${index + 1} / ${states.length}`;
+    status.textContent = `当前容量 ${state.area} · 已见最大 ${state.best}`;
+    detail.textContent = index === states.length - 1
+      ? '最后一对：继续移动后指针相遇。最终答案保留为 18。'
+      : (heights[state.left] <= heights[state.right]
+        ? `左边 ${heights[state.left]} 更短，下一步移动左指针 i。`
+        : `右边 ${heights[state.right]} 更短，下一步移动右指针 j。`);
+    updateControls();
+  }
+  function move(delta) {
+    if (busy) return;
+    const from = states[index];
+    const destination = Math.max(0, Math.min(states.length - 1, index + delta));
+    if (destination === index) return;
+    index = destination;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      render();
+      return;
+    }
+    busy = true;
+    updateControls();
+    let start = null;
+    const step = time => {
+      if (start === null) start = time;
+      const portion = Math.min(1, (time - start) / 320);
+      render(from, portion * portion * (3 - 2 * portion));
+      if (portion < 1) pendingFrame = requestAnimationFrame(step);
+      else {
+        busy = false;
+        pendingFrame = null;
+        updateControls();
+      }
+    };
+    pendingFrame = requestAnimationFrame(step);
+  }
+  previous.addEventListener('click', () => move(-1));
+  next.addEventListener('click', () => move(1));
+  new ResizeObserver(() => {
+    if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
+    busy = false;
+    pendingFrame = null;
+    render();
+  }).observe(svg);
+  render();
+})();
+</script>
+</main>
+</body>
+</html>
